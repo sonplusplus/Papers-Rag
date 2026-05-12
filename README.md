@@ -2,57 +2,118 @@
 
 A local RAG (Retrieval-Augmented Generation) pipeline for querying AI research papers using LangChain, FAISS, and local LLM.
 
-## Dataset (download từ arxiv)
+## Architecture
 
-| Paper | Domain |
-|---|---|
-| A Comprehensive Survey on Vector Data... | Vector DB / Search |
-| An Introduction to Vision-Language Models | VLM |
-| Attention Is All You Need | Transformer |
-| DeepSeek-VL Towards Real-World Vision... | VLM |
-| LangChain | RAG Framework |
-| LLaMA Open and Efficient Foundation Models | LLM |
-| PoseNet A Convolutional Network for Re... | Computer Vision |
-| Qwen3 Technical Report | LLM |
-| Searching for MobileNetV3 | Efficient CNN |
-| WHAT IS YOLOV8 | Object Detection |
-| YOLO26 | Object Detection |
+```
+PDF Files
+    ↓  DirectoryLoader + PyPDFLoader
+Raw Documents
+    ↓  RecursiveCharacterTextSplitter (chunk_size=1200, overlap=300)
+Chunks (~1060 total from 11 papers)
+    ↓
+    ├── BM25 Index (sparse, keyword-exact)
+    └── FAISS Index (dense, semantic)
+            ↓  EnsembleRetriever (RRF weights: BM25=0.4, FAISS=0.6)
+Top-10 Candidates
+    ↓  CrossEncoder reranker (ms-marco-MiniLM-L-6-v2)
+Top-3 Reranked Chunks
+    ↓  PromptTemplate + ChatOllama (llama3.2)
+Grounded Answer with Citations
+```
 
----
 
-## Changelog
 
-### v0.0.1 — Initial setup with Gemini Embedding + Chat
-- Stack ban đầu: Google Gemini Embedding + `gemini-2.0-flash` LLM
-- **Lỗi:** Free tier embedding giới hạn 100 req/min → thêm `BATCH_SIZE=30` + `SLEEP_SEC=65s` để tránh rate limit
+## How to run
 
-### v0.0.2 — Embedding quota exhausted
-- 11 PDFs => 270 pages => 1060 chunks => hết 1000 req/day
-- **Fix:** Chuyển sang HuggingFace local embedding `sentence-transformers/all-MiniLM-L6-v2` (ko rate limit, offline)
-  - Không cần API key, không rate limit, chạy offline
-  - Xóa`SLEEP_SEC`trong `vectorstore.py`
-  - Tăng `BATCH_SIZE` từ 30 → 100
+### 1. Clone & install
 
-### v0.0.3 — LLM quota exhausted
-- First query → 429 RESOURCE_EXHAUSTED trên `gemini-2.0-flash` free tier
-- **Fix:** Chuyển LLM sang Ollama local `llama3.2` (ko quota, offline)
-  - Cài Ollama app → `ollama pull llama3.2` → `pip install langchain-ollama`
-  - Time response khá lâu 
----
-
-## How to test
 ```bash
-git clone <repo>
-cd PapersRag
+git clone https://github.com/sonplusplus/Papers-Rag
 python -m venv myenv
+
+# Windows
 myenv\Scripts\Activate.ps1
+
+# Mac/Linux
+source myenv/bin/activate
+
 pip install -r requirements.txt
+```
 
-# Chuyển các Papers(hoặc Docs) dạng file (.pdf) vào trong Dataset/
+> `requirements.txt` includes `rank-bm25` (needed for BM25Retriever) and `sentence-transformers` (needed for CrossEncoder reranker).
 
-# Cài Ollama
+---
+
+### 2. Add papers
+
+Copy PDF files into the `Dataset/` folder:
+
+```
+PapersRag/
+└── Dataset/
+    ├── Attention Is All You Need.pdf
+    ├── LLaMA.pdf
+    └── ...
+```
+
+---
+
+### 3. Install and start Ollama
+
+```bash
+
 irm https://ollama.com/install.ps1 | iex
+
+
+brew install ollama
+
 ollama pull llama3.2
 
+ollama serve
+```
+
+---
+
+### 4. Run the QA interface
+
+```bash
 python main.py
+```
+
+First run: loads PDFs → chunks → builds FAISS index → saves to `vectorstore/faiss_index/`  
+Subsequent runs: loads FAISS from disk (fast).
+
+Expected output:
+```
+Loaded 11 docs → 1060 chunks
+Loading FAISS from disk...
+Loading cross-encoder: cross-encoder/ms-marco-MiniLM-L-6-v2
+Retriever: Hybrid BM25+FAISS + cross-encoder reranker (top 3)
+
+Question (q to quit): What is multi-head attention?
+Answer: Multi-head attention allows the model to ... (source: Attention Is All You Need.pdf | page: 4)
+```
+
+---
+
+### 5. Run retrieval evaluation
+
+```bash
+python eval.py
+```
+
+
+---
+
+## Configuration
+
+In `main.py`:
+```python
+USE_RERANKER = True   
+                      
+```
+
+In `retriever.py`:
+```python
+build_hybrid_retriever(..., bm25_weight=0.4, faiss_weight=0.6, k=10)
 ```

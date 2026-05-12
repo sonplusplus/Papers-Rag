@@ -1,11 +1,13 @@
 langchain-core
 langchain-community
+langchain-classic
 langchain-text-splitters
 langchain-huggingface
 sentence-transformers
 faiss-cpu
 langchain-chroma
 langchain-ollama
+rank-bm25
+pypdf
 #gemini(before ollama)
 google-genai
-
