@@ -76,9 +76,8 @@ def source_hit(docs, keywords: list[str]) -> bool:
 
 
 def evaluate_retrieval(retriever, qa_pairs: list, k_label: str = "") -> float:
-    print(f"\n{'='*60}")
     print(f"RETRIEVAL EVALUATION {k_label}")
-    print(f"{'='*60}")
+    print(f"{'='*10}")
 
     hits = 0
     for i, qa in enumerate(qa_pairs):
@@ -111,14 +110,12 @@ def compare_retrievers(splits, faiss_db):
 
     recall_dense = evaluate_retrieval(dense_retriever, QA_PAIRS, "— Dense Only (FAISS k=5)")
     recall_hybrid = evaluate_retrieval(hybrid_retriever, QA_PAIRS, "— Hybrid BM25+FAISS k=10")
-
-    print(f"\n{'='*60}")
     print(f"SUMMARY")
     print(f"  Dense-only recall:  {recall_dense:.1%}")
     print(f"  Hybrid recall:      {recall_hybrid:.1%}")
     delta = recall_hybrid - recall_dense
     print(f"  Improvement:        {delta:+.1%}")
-    print(f"{'='*60}")
+    print(f"{'='*10}")
 
     return recall_dense, recall_hybrid
 
